@@ -630,6 +630,34 @@ export const Bifunctor: Bifunctor2<URI> = {
 
 /**
  * Less strict version of [`alt`](#alt).
+ * 
+ * @example
+ * import * as E from 'fp-ts/Either'
+ * import { pipe } from 'fp-ts/function'
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.of('a'),
+ *     E.altW(() => E.of(2))
+ *   ),
+ *   E.of('a')
+ * )
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.left('a'),
+ *     E.altW(() => E.of(2))
+ *   ),
+ *   E.of(2)
+ * )
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.left('a'),
+ *     E.altW(() => E.left(2))
+ *   ),
+ *   E.left(2)
+ * )
  *
  * @category instance operations
  * @since 2.9.0
@@ -641,6 +669,124 @@ export const altW: <E2, B>(that: Lazy<Either<E2, B>>) => <E1, A>(fa: Either<E1, 
 /**
  * Identifies an associative operation on a type constructor. It is similar to `Semigroup`, except that it applies to
  * types of kind `* -> *`.
+ * 
+ * The `Either` instance can be used to specify a computation to attempt if another computation might fail.
+ * 
+ * This could be used to provide a series of fallback computations in a chain of computations that could fail.
+ * 
+ * It could also be used to provide defaults to individual steps in a more complex computation that might fail. 
+ * 
+ * @example
+ * import * as E from 'fp-ts/Either'
+ * import { pipe } from 'fp-ts/function'
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.of('a'),
+ *     E.alt(() => E.of('b'))
+ *   ),
+ *   E.of('a')
+ * )
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.left('a'),
+ *     E.alt(() => E.of('b'))
+ *   ),
+ *   E.of('b')
+ * )
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.left('a'),
+ *     E.alt(() => E.left('b'))
+ *   ),
+ *   E.left('b')
+ * )
+ * 
+ * @example
+ * import * as E from 'fp-ts/Either'
+ * import { pipe } from 'fp-ts/function'
+ * 
+ * var result: string
+ * 
+ * try {
+ *   result = 'a'
+ *   throw new Error('oh no a!')
+ * } catch (e) {
+ *   try {
+ *     result = 'b'
+ *     throw new Error('oh no b!')
+ *   } catch (e) {
+ *     result = 'c'
+ *   }
+ * }
+ * 
+ * assert.deepStrictEqual(
+ *   pipe(
+ *     E.left(new Error('oh no a!')),
+ *     E.alt(() => E.left(new Error('oh no b!'))),
+ *     E.alt(() => E.of('c'))
+ *   ),
+ *   E.of(result)
+ * )
+ * 
+ * @example
+ * import * as E from 'fp-ts/Either'
+ * import { pipe, constant } from 'fp-ts/function'
+ * 
+ * const parseFloat = (s: string): number => {
+ *   const n = Number.parseFloat(s)
+ *   if (Number.isNaN(n)) throw new Error(`${s} is not numeric!`)
+ *   return n
+ * }
+ * 
+ * type Location = { lat: number; lon: number }
+ * const parseLocation = (s: string): Location => {
+ *   const [latS, lonS] = s.split(',')
+ *   let lat: number, lon: number
+ *   try {
+ *     lat = parseFloat(latS)
+ *   } catch (_) {
+ *     lat = 0
+ *   }
+ * 
+ *   try {
+ *     lon = parseFloat(lonS)
+ *   } catch (_) {
+ *     lon = 0
+ *   }
+ * 
+ *   return { lat, lon }
+ * }
+ * 
+ * const parseFloatEither = E.tryCatchK(parseFloat, e => e as Error)
+ * 
+ * const parseOrElse =
+ *   (fallback: number) =>
+ *   (s: string): E.Either<Error, number> =>
+ *     pipe(
+ *       parseFloatEither(s),
+ *       E.alt(constant(E.of(fallback)))
+ *     )
+ * 
+ * const parseLocationComponent = parseOrElse(0)
+ * 
+ * const parseLocationEither: (s: string) => E.Either<Error, Location> = s => {
+ *   const [latS, lonS] = s.split(',')
+ *   return pipe(
+ *     E.Do,
+ *     E.bind('lat', () => parseLocationComponent(latS)),
+ *     E.bind('lon', () => parseLocationComponent(lonS)),
+ *   )
+ * }
+ * 
+ * const locS = ','
+ * 
+ * assert.deepStrictEqual(
+ *   parseLocationEither(locS),
+ *   E.of(parseLocation(locS))
+ * )
  *
  * @category instance operations
  * @since 2.0.0
